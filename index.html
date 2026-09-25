@@ -175,10 +175,10 @@
   <div class="card">
     <h1>ЭЛЕКТРИК</h1>
     <div class="sub">лампочки для квартиры</div>
-    <p class="desc">В квартире 4 комнаты: кухня, детская, спальня и санузел. Свет выбили — во всех люстрах
-      и точечных светильниках пустые патроны. Электрик пришёл с полной корзиной лампочек: подойди к пустому
-      патрону и кликни по нему — он достанет лампочку, вкрутит её, и комната наполнится светом.
-      Осталось 22 лампочки.</p>
+    <p class="desc">В квартире 4 комнаты: кухня, детская, спальня и санузел. Свет выбили — в каждом
+      точечном светильнике пустой патрон. Электрик пришёл с полной корзиной лампочек: подойди к пустому
+      патрону и кликни по нему — он достанет лампочку, вкрутит её, и её пятно света ляжет на комнату.
+      Всего 22 лампочки.</p>
     <div class="row">
       <div class="chip">Комнат: <b>4</b></div>
       <div class="chip">Лампочек: <b>22</b></div>
@@ -213,9 +213,9 @@
   <div class="card">
     <h1 style="font-size:26px">КАК ИГРАТЬ</h1>
     <div class="sub">коротко</div>
-    <div class="hl"><i>1</i><div>Квартира тёмная. В люстрах и точечных светильниках видны пустые патроны — тёмные гнёзда с резьбой.</div></div>
+    <div class="hl"><i>1</i><div>Квартира тёмная. В каждом точечном светильнике видно пустой патрон — тёмное гнездо с резьбой.</div></div>
     <div class="hl"><i>2</i><div>Кликни по пустому патрону — электрик сам дойдёт до него, достанет лампочку из корзины и вкрутит.</div></div>
-    <div class="hl"><i>3</i><div>Лампа загорается: тёплый свет заливает комнату, а лампочка в корзине становится на одну меньше.</div></div>
+    <div class="hl"><i>3</i><div>Лампа загорается и освещает свою часть комнаты: в спальне 7 светильников — значит каждая лампа даёт седьмую часть света.</div></div>
     <div class="hl"><i>4</i><div>Освети все 22 лампочки — и квартира будет как новенькая. Чем быстрее, тем больше звёзд.</div></div>
     <div class="hl" style="color:#9db4cd;font-size:12.5px"><i>⌨</i><div><kbd>WASD</kbd>/<kbd>стрелки</kbd> — идти, <kbd>пробел</kbd> — вкрутить ближайший патрон, карту можно тянуть мышью.</div></div>
     <button class="btn ghost" id="bCloseHelp" style="margin-top:8px">Понятно</button>
@@ -351,23 +351,35 @@ const PROPS = [
 ];
 PROPS.forEach(p => { if (p.solid !== false) SOLIDS.push(p); });
 
-/* ---------- светильники ---------- */
-const FIXTURES = [
-  { id: 'k1', room: 'kitchen', type: 'chand', x: 2.95, y: 2.72, z: 2.16, n: 3, r: 0.42 },
-  { id: 'k2', room: 'kitchen', type: 'spot', x: 0.5, y: 0.78, z: 2.44 },
-  { id: 'k3', room: 'kitchen', type: 'spot', x: 0.5, y: 1.75, z: 2.44 },
-  { id: 'k4', room: 'kitchen', type: 'spot', x: 0.5, y: 2.72, z: 2.44 },
-  { id: 'k5', room: 'kitchen', type: 'spot', x: 4.55, y: 0.95, z: 2.44 },
-  { id: 'd1', room: 'kids', type: 'chand', x: 8.25, y: 1.95, z: 2.2, n: 5, r: 0.5 },
-  { id: 'd2', room: 'kids', type: 'spot', x: 5.95, y: 0.95, z: 2.44 },
-  { id: 'd3', room: 'kids', type: 'spot', x: 9.95, y: 3.45, z: 2.44 },
-  { id: 's1', room: 'bed', type: 'chand', x: 3.6, y: 6.35, z: 2.14, n: 3, r: 0.42 },
-  { id: 's2', room: 'bed', type: 'spot', x: 2.95, y: 4.85, z: 2.44 },
-  { id: 's3', room: 'bed', type: 'spot', x: 5.65, y: 7.75, z: 2.44 },
-  { id: 'b1', room: 'bath', type: 'dome', x: 8.6, y: 6.25, z: 2.3, n: 1, r: 0.2 },
-  { id: 'b2', room: 'bath', type: 'spot', x: 7.6, y: 5.05, z: 2.44 },
-  { id: 'b3', room: 'bath', type: 'spot', x: 9.6, y: 7.6, z: 2.44 }
-];
+/* ---------- светильники: только точечные, 4–12 на комнату по размеру ----------
+   Светильники расставлены ровными рядами, так что каждый угол комнаты освещён.
+   В санузле 3.8×4.2 м — 4 штуки (по углам), в кухне 5.4×4.2 — 6, в детской — 5,
+   в спальне 6.8×4.2 — 7. Всего 22 лампочки. */
+function buildFixtureData() {
+  const out = [];
+  for (const r of ROOMS) {
+    const n = clamp(Math.round(r.w * r.d / 4), 4, 12);
+    const ins = 0.78;
+    const x0 = r.x + ins, x1 = r.x + r.w - ins, y0 = r.y + ins, y1 = r.y + r.d - ins;
+    const rows = n >= 9 ? 3 : 2;
+    const base = Math.floor(n / rows), extra = n % rows;
+    const poolR = clamp(Math.sqrt(r.w * r.d / n) * 1.25, 1.05, 1.75);
+    let idx = 0;
+    for (let ry = 0; ry < rows; ry++) {
+      const m = base + (ry < extra ? 1 : 0);
+      const yy = rows === 1 ? (y0 + y1) / 2 : (rows === 2 ? (ry ? y1 : y0) : (ry === 0 ? y0 : (ry === 1 ? (y0 + y1) / 2 : y1)));
+      for (let i = 0; i < m; i++) {
+        const xx = m === 1 ? (x0 + x1) / 2 : (x0 + (x1 - x0) * i / (m - 1));
+        out.push({
+          id: r.id[0] + (++idx), room: r.id, type: 'spot',
+          x: Math.round(xx * 100) / 100, y: Math.round(yy * 100) / 100, z: 2.44, poolR: poolR
+        });
+      }
+    }
+  }
+  return out;
+}
+const FIXTURES = buildFixtureData();
 let ALL = 0;                     // всего патронов
 
 /* ---------- сетка проходимости + A* ---------- */
@@ -1095,20 +1107,9 @@ function drawProp(c, p, amb) {
 function buildFixtures() {
   ALL = 0;
   FIXTURES.forEach(f => {
-    f.sockets = [];
-    if (f.type === 'chand' || f.type === 'dome') {
-      const rr0 = f.type === 'dome' ? 0 : f.r;
-      for (let i = 0; i < f.n; i++) {
-        const a = (i / f.n) * TAU - Math.PI / 2;
-        f.sockets.push({
-          fx: f, x: f.x + rr0 * Math.cos(a), y: f.y + rr0 * Math.sin(a),
-          z: f.z - (f.type === 'dome' ? -0.08 : (i % 2) * 0.05),
-          lit: false, glow: 0, rot: 0, busy: false
-        });
-      }
-    } else {
-      f.sockets.push({ fx: f, x: f.x, y: f.y, z: f.z - 0.02, lit: false, glow: 0, rot: 0, busy: false });
-    }
+    f.sockets = [{
+      fx: f, x: f.x, y: f.y, z: f.z - 0.02, lit: false, glow: 0, rot: 0, busy: false
+    }];
   });
   buildGrid();
   FIXTURES.forEach(f => f.sockets.forEach(s => {
@@ -1187,7 +1188,7 @@ function drawSocket(c, p, filled, warm, noBulb) {
 }
 function ceilingPlate(c, f) {
   const z = APT.wallH;
-  const r = f.type === 'chand' ? 0.13 : (f.type === 'dome' ? 0.12 : 0.2);
+  const r = 0.2;
   const p = P(f.x, f.y, z);
   c.save();
   c.strokeStyle = 'rgba(190,205,225,.30)'; c.lineWidth = 0.02 * U;
@@ -1203,56 +1204,23 @@ function drawFixture(c, f, ambs) {
   c.save();
   c.globalAlpha = 0.72 + 0.28 * amb;
   ceilingPlate(c, f);
-  const top = P(f.x, f.y, APT.wallH);
-  if (f.type === 'chand') {
-    const cen = P(f.x, f.y, f.z + 0.12);
-    c.strokeStyle = 'rgba(28,26,24,.9)'; c.lineWidth = 0.035 * U;
-    c.beginPath(); c.moveTo(top.x, top.y); c.lineTo(cen.x, cen.y); c.stroke();
-    /* кольцо */
-    const rp = P(f.x, f.y, f.z);
-    c.strokeStyle = '#4a3f33'; c.lineWidth = 0.05 * U;
-    c.beginPath(); c.ellipse(rp.x, rp.y, f.r * U, f.r * 0.5 * U, 0, 0, TAU); c.stroke();
-    c.strokeStyle = 'rgba(226,196,142,.55)'; c.lineWidth = 0.016 * U;
-    c.beginPath(); c.ellipse(rp.x, rp.y - 0.012 * U, f.r * U, f.r * 0.5 * U, 0, 0, TAU); c.stroke();
-    /* стойка */
-    c.strokeStyle = '#3b332a'; c.lineWidth = 0.05 * U;
-    c.beginPath(); c.moveTo(cen.x, cen.y); c.lineTo(rp.x, rp.y); c.stroke();
-    c.fillStyle = '#5a4c3c'; ell(c, f.x, f.y, f.z + 0.12, 0.06, 0.03); c.fill();
-    /* лучи к патронам */
-    f.sockets.forEach(s => {
-      const a = P(s.x, s.y, f.z + 0.1), b = P(s.x, s.y, s.z);
-      c.strokeStyle = '#4a3f33'; c.lineWidth = 0.045 * U;
-      c.beginPath(); c.moveTo(rp.x, rp.y); c.lineTo(a.x, a.y); c.stroke();
-      c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
-      c.fillStyle = 'rgba(255,214,140,.5)'; ell(c, s.x, s.y, s.z + 0.02, 0.05, 0.025); c.fill();
-    });
-  } else if (f.type === 'dome') {
-    const b = P(f.x, f.y, f.z);
-    c.strokeStyle = '#3b332a'; c.lineWidth = 0.04 * U;
-    c.beginPath(); c.moveTo(top.x, top.y); c.lineTo(b.x, b.y); c.stroke();
-    c.fillStyle = 'rgba(226,238,246,.55)';
-    c.beginPath(); c.ellipse(b.x, b.y, 0.24 * U, 0.12 * U, 0, 0, TAU); c.fill();
-    c.strokeStyle = 'rgba(180,196,210,.8)'; c.lineWidth = 0.02 * U; c.stroke();
-    c.fillStyle = 'rgba(120,140,158,.6)'; ell(c, f.x, f.y, f.z + 0.1, 0.07, 0.035); c.fill();
-  } else {
-    const b = P(f.x, f.y, f.z + 0.06);
-    /* гильза в потолке */
-    c.fillStyle = '#2b2f36';
-    c.beginPath(); c.ellipse(b.x, b.y, 0.19 * U, 0.095 * U, 0, 0, TAU); c.fill();
-    c.fillStyle = '#3d434c';
-    c.beginPath(); c.ellipse(b.x, b.y - 0.03 * U, 0.155 * U, 0.078 * U, 0, 0, TAU); c.fill();
-    c.fillStyle = '#191c22';
-    c.beginPath(); c.ellipse(b.x, b.y - 0.07 * U, 0.125 * U, 0.062 * U, 0, 0, TAU); c.fill();
-    c.strokeStyle = 'rgba(150,170,190,.35)'; c.lineWidth = 0.018 * U;
-    c.beginPath(); c.ellipse(b.x, b.y, 0.19 * U, 0.095 * U, 0, 0, TAU); c.stroke();
-    /* направленный свет — «утка» */
-    c.fillStyle = '#5c6670';
-    poly(c, [
-      { x: b.x - 0.15 * U, y: b.y - 0.02 * U }, { x: b.x - 0.13 * U, y: b.y + 0.09 * U },
-      { x: b.x + 0.13 * U, y: b.y + 0.09 * U }, { x: b.x + 0.15 * U, y: b.y - 0.02 * U }
-    ]);
-    c.fill();
-  }
+  const b = P(f.x, f.y, f.z + 0.06);
+  /* гильза в потолке */
+  c.fillStyle = '#2b2f36';
+  c.beginPath(); c.ellipse(b.x, b.y, 0.19 * U, 0.095 * U, 0, 0, TAU); c.fill();
+  c.fillStyle = '#3d434c';
+  c.beginPath(); c.ellipse(b.x, b.y - 0.03 * U, 0.155 * U, 0.078 * U, 0, 0, TAU); c.fill();
+  c.fillStyle = '#191c22';
+  c.beginPath(); c.ellipse(b.x, b.y - 0.07 * U, 0.125 * U, 0.062 * U, 0, 0, TAU); c.fill();
+  c.strokeStyle = 'rgba(150,170,190,.35)'; c.lineWidth = 0.018 * U;
+  c.beginPath(); c.ellipse(b.x, b.y, 0.19 * U, 0.095 * U, 0, 0, TAU); c.stroke();
+  /* направленный свет — «утка» */
+  c.fillStyle = '#5c6670';
+  poly(c, [
+    { x: b.x - 0.15 * U, y: b.y - 0.02 * U }, { x: b.x - 0.13 * U, y: b.y + 0.09 * U },
+    { x: b.x + 0.13 * U, y: b.y + 0.09 * U }, { x: b.x + 0.15 * U, y: b.y - 0.02 * U }
+  ]);
+  c.fill();
   c.restore();
   /* патроны */
   f.sockets.forEach(s => {
@@ -1602,8 +1570,8 @@ function drawDark(fact) {
   for (const s of SOCKETS) {
     if (s.glow <= .02) continue;
     const q = P(s.x, s.y, 0.02), q2 = P(s.x, s.y, s.z);
-    const R = s.fx.type === 'spot' ? 2.0 : (s.fx.type === 'dome' ? 2.1 : 3.1);
-    hole(q.x - CP.x + AX, q.y - CP.y + AY, R, .96 * s.glow, .5);
+    const R = (s.fx.poolR || 1.3) * 1.4;
+    hole(q.x - CP.x + AX, q.y - CP.y + AY, R, .92 * s.glow, .5);
     hole(q2.x - CP.x + AX, q2.y - CP.y + AY, 1.25, .8 * s.glow, 1);
   }
   /* подсветка вокруг электрика, чтобы его всегда было видно */
@@ -1653,16 +1621,16 @@ function resetGame() {
     '</div><div class="rv">0/' + r.total + '</div><div class="rbar"><i></i></div></div>').join('');
   $('startOv').querySelector('.sub').textContent = 'лампочки для квартиры · ' + ALL + ' шт.';
   $('startOv').querySelector('.desc').textContent =
-    'В квартире 4 комнаты: кухня, детская, спальня и санузел. Свет выбили — в люстрах и точечных ' +
-    'светильниках остались пустые патроны. Электрик пришёл с полной корзиной лампочек: подойди к ' +
-    'пустому патрону и кликни по нему — он достанет лампочку, вкрутит, и комната наполнится светом. ' +
-    'Осталось ' + ALL + ' лампочек.';
+    'В квартире 4 комнаты: кухня, детская, спальня и санузел. Свет выбили — в каждом точечном ' +
+    'светильнике остался пустой патрон. Электрик пришёл с полной корзиной лампочек: подойди к ' +
+    'пустому патрону и кликни по нему — он достанет лампочку, вкрутит, и её пятно света ляжет на комнату. ' +
+    'Всего ' + ALL + ' лампочек.';
   $('startOv').querySelectorAll('.chip')[1].innerHTML = 'Лампочек: <b>' + ALL + '</b>';
 }
 function startGame() {
   G.started = true;
   $('startOv').style.display = 'none';
-  toast('Начни с кухни — там 4 светильника, 7 ламп', 1);
+  toast('Начни с любого светильника — в каждой комнате они по углам', 1);
 }
 function toast(txt, dur) {
   const t = $('toast');
@@ -1726,7 +1694,7 @@ function win() {
   sfx('win');
   for (let i = 0; i < 6; i++) spark(rnd(0, APT.w), rnd(0, APT.d), 2.2, 20, 2.2, '255,226,160');
   const t = G.time;
-  const stars = t < 115 ? 3 : (t < 190 ? 2 : 1);
+  const stars = t < 150 ? 3 : (t < 230 ? 2 : 1);
   $('stars').innerHTML = [0, 1, 2].map(i => i < stars ? '★' : '<i>★</i>').join('');
   $('wTime').textContent = fmtTime(t);
   $('wScore').textContent = G.score;
@@ -1826,14 +1794,11 @@ addEventListener('keydown', e => {
     let best = null, bd = 3.2;
   /* общий свет комнаты — считается по числу ЛАМП, а не по светильникам */
   for (const r of ROOMS) {
-    if (G.started) {
-      const amb = AMBS[r.id] || 0;
-      if (amb > .01) {
-        const q = P(r.x + r.w / 2, r.y + r.d / 2, 0.02);
-        hole(q.x - CP.x + AX, q.y - CP.y + AY, Math.max(r.w, r.d) * .68, .4 * amb, .5);
-        hole(q.x - CP.x + AX, q.y - CP.y + AY, Math.max(r.w, r.d) * .4, .24 * amb, .62);
-      }
-    }
+    const amb = AMBS[r.id] || 0;
+    const base = .1, v = base + (1 - base) * amb;
+    const q = P(r.x + r.w / 2, r.y + r.d / 2, 0.02);
+    hole(q.x - CP.x + AX, q.y - CP.y + AY, Math.max(r.w, r.d) * .68, .18 * v, .5);
+    hole(q.x - CP.x + AX, q.y - CP.y + AY, Math.max(r.w, r.d) * .4, .1 * v, .62);
   }
   for (const s of SOCKETS) {
       if (s.lit) continue;
@@ -2104,9 +2069,8 @@ function buildSorted() {
   SORTED.forEach(p => { p._d = p.x + p.y + p.w + p.d; p._r = roomOf(p.x + p.w / 2, p.y + p.d / 2); });
 }
 const AMBS = {};
-/* Освещённость комнаты считается по ЛАМПАМ (патронам): вкрутили 1 лампу из 7 —
-   в комнате уже заметно светлее, вкрутили все — свет ровный и яркий, но без пересвета.
-   Кривая frac^0.55: первая лампа даёт ~1/3 эффекта, не создавая «пятен» у одного светильника. */
+/* Освещённость комнаты = доля вкрученных ламп: 1 лампа из 4 → четверть света.
+   Ровный «общий» свет комнаты слабый, основную часть даёт пятно каждой лампы. */
 function roomAmb(r) {
   let full = 0;
   for (const f of FIXTURES) {
@@ -2114,8 +2078,7 @@ function roomAmb(r) {
     if (f.sockets.every(s => s.lit)) full++;
   }
   r.fLit = full;
-  const frac = r.total ? clamp(r.lit / r.total, 0, 1) : 0;
-  return Math.pow(frac, .55);
+  return r.total ? clamp(r.lit / r.total, 0, 1) : 0;
 }
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -2130,24 +2093,24 @@ function draw() {
   ROOMS.forEach(r => AMBS[r.id] = roomAmb(r));
   for (const p of SORTED) drawProp(ctx, p, AMBS[p._r.id]);
   /* тьма */
-  drawDark(.35 + .65 * (1 - G.litFact * .72));
+  drawDark(1 - G.litFact * .1);
   /* тёплый свет */
   ctx.save();
   for (const r of ROOMS) {
-    if (!G.started) continue;
     const amb = AMBS[r.id] || 0;
+    /* тёмный базовый свет комнаты + добавка от вкрученных ламп */
+    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .72, '150,175,215', .055, 'screen');
     if (amb < .01) continue;
-    /* screen: общий свет ложится ровно и не выбивает предметы в белое */
-    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .72, COL_WARM, .26 * amb, 'screen');
-    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .42, '255,236,204', .16 * amb, 'screen');
+    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .72, COL_WARM, .17 * amb, 'screen');
+    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .42, '255,236,204', .1 * amb, 'screen');
   }
   for (const f of FIXTURES) for (const s of f.sockets) {
     if (s.glow < .02) continue;
-    const R = f.type === 'spot' ? 1.8 : (f.type === 'dome' ? 1.95 : 2.6);
-    /* screen: перекрывающиеся пятна от нескольких ламп не дают пересвета */
-    pool(ctx, s.x, s.y, .015, R, COL_WARM, .36 * s.glow, 'screen');
-    pool(ctx, s.x, s.y, .015, R * .45, '255,236,200', .18 * s.glow, 'screen');
-    if (f.type === 'spot') cone(ctx, s.x, s.y, s.z - .05, 1.6, .3 * s.glow);
+    const R = f.poolR || 1.3;
+    /* каждая лампа даёт свою долю света комнаты: пятно в пределах этой лампы */
+    pool(ctx, s.x, s.y, .015, R * 1.25, COL_WARM, .44 * s.glow, 'screen');
+    pool(ctx, s.x, s.y, .015, R * .6, '255,236,200', .26 * s.glow, 'screen');
+    cone(ctx, s.x, s.y, s.z - .05, 1.5, .26 * s.glow);
   }
   /* дневной свет из окон */
   for (const w of WINDOW_LIGHTS) pool(ctx, w.x, w.y, .02, w.r * .8, '200,225,255', .1);
@@ -2196,7 +2159,7 @@ function draw() {
     tp.classList.add('on');
     const f = hoverSock.fx;
     const left = f.sockets.filter(s => !s.lit).length;
-    const nm = f.type === 'chand' ? 'Люстра' : (f.type === 'dome' ? 'Светильник' : 'Точечный светильник');
+    const nm = 'Точечный светильник';
     tp.innerHTML = nm + ' — пустых патронов: ' + left + '<s>клик — идти и вкрутить</s>';
   } else $('tip').classList.remove('on');
   if ((G.frameNo & 1) === 0) drawMap();
