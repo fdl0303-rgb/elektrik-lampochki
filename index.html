@@ -1544,10 +1544,10 @@ function drawParts(c) {
 
 /* =============== СВЕТ =============== */
 const COL_WARM = '255,206,132';
-function pool(c, x, y, z, R, col, a) {
+function pool(c, x, y, z, R, col, a, op) {
   const p = P(x, y, z);
   c.save();
-  c.globalCompositeOperation = 'lighter';
+  c.globalCompositeOperation = op || 'lighter';
   c.translate(p.x, p.y); c.scale(1, 0.5);
   const g = c.createRadialGradient(0, 0, 0, 0, 0, R * U);
   g.addColorStop(0, 'rgba(' + col + ',' + (a).toFixed(3) + ')');
@@ -1662,7 +1662,7 @@ function resetGame() {
 function startGame() {
   G.started = true;
   $('startOv').style.display = 'none';
-  toast('Начни с кухни — там 4 пустых светильника', 1);
+  toast('Начни с кухни — там 4 светильника, 7 ламп', 1);
 }
 function toast(txt, dur) {
   const t = $('toast');
@@ -1824,13 +1824,14 @@ addEventListener('keydown', e => {
     if (!G.started || G.over) return;
     if (hero.job) { cancelJob(); return; }
     let best = null, bd = 3.2;
-  /* общий свет комнаты — считается по числу СВЕТИЛЬНИКОВ, а не патронов */
+  /* общий свет комнаты — считается по числу ЛАМП, а не по светильникам */
   for (const r of ROOMS) {
     if (G.started) {
       const amb = AMBS[r.id] || 0;
       if (amb > .01) {
         const q = P(r.x + r.w / 2, r.y + r.d / 2, 0.02);
-        hole(q.x - CP.x + AX, q.y - CP.y + AY, Math.max(r.w, r.d) * .62, .34 * amb, .5);
+        hole(q.x - CP.x + AX, q.y - CP.y + AY, Math.max(r.w, r.d) * .68, .4 * amb, .5);
+        hole(q.x - CP.x + AX, q.y - CP.y + AY, Math.max(r.w, r.d) * .4, .24 * amb, .62);
       }
     }
   }
@@ -2103,19 +2104,18 @@ function buildSorted() {
   SORTED.forEach(p => { p._d = p.x + p.y + p.w + p.d; p._r = roomOf(p.x + p.w / 2, p.y + p.d / 2); });
 }
 const AMBS = {};
-/* освещённость комнаты: считается по СВЕТИЛЬНИКАМ, а не по патронам.
-   Пустой светильник — 0, заполненный наполовину — 55 % его вклада, целый — 100 %. */
+/* Освещённость комнаты считается по ЛАМПАМ (патронам): вкрутили 1 лампу из 7 —
+   в комнате уже заметно светлее, вкрутили все — свет ровный и яркий, но без пересвета.
+   Кривая frac^0.55: первая лампа даёт ~1/3 эффекта, не создавая «пятен» у одного светильника. */
 function roomAmb(r) {
-  let sum = 0, full = 0;
+  let full = 0;
   for (const f of FIXTURES) {
     if (f.room !== r.id) continue;
-    let n = 0;
-    for (const s of f.sockets) if (s.lit) n++;
-    if (n >= f.sockets.length) full++;
-    sum += n >= f.sockets.length ? 1 : (n / f.sockets.length) * .55;
+    if (f.sockets.every(s => s.lit)) full++;
   }
   r.fLit = full;
-  return r.fTotal ? sum / r.fTotal : 0;
+  const frac = r.total ? clamp(r.lit / r.total, 0, 1) : 0;
+  return Math.pow(frac, .55);
 }
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -2130,21 +2130,24 @@ function draw() {
   ROOMS.forEach(r => AMBS[r.id] = roomAmb(r));
   for (const p of SORTED) drawProp(ctx, p, AMBS[p._r.id]);
   /* тьма */
-  drawDark(.35 + .65 * (1 - G.litFact * .55));
+  drawDark(.35 + .65 * (1 - G.litFact * .72));
   /* тёплый свет */
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  ctx.save();
   for (const r of ROOMS) {
     if (!G.started) continue;
     const amb = AMBS[r.id] || 0;
     if (amb < .01) continue;
-    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .66, COL_WARM, .3 * amb);
+    /* screen: общий свет ложится ровно и не выбивает предметы в белое */
+    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .72, COL_WARM, .26 * amb, 'screen');
+    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .42, '255,236,204', .16 * amb, 'screen');
   }
   for (const f of FIXTURES) for (const s of f.sockets) {
     if (s.glow < .02) continue;
-    const R = f.type === 'spot' ? 1.8 : (f.type === 'dome' ? 1.95 : 2.9);
-    pool(ctx, s.x, s.y, .015, R, COL_WARM, .52 * s.glow);
-    pool(ctx, s.x, s.y, .015, R * .45, '255,236,200', .3 * s.glow);
-    if (f.type === 'spot') cone(ctx, s.x, s.y, s.z - .05, 1.6, .34 * s.glow);
+    const R = f.type === 'spot' ? 1.8 : (f.type === 'dome' ? 1.95 : 2.6);
+    /* screen: перекрывающиеся пятна от нескольких ламп не дают пересвета */
+    pool(ctx, s.x, s.y, .015, R, COL_WARM, .36 * s.glow, 'screen');
+    pool(ctx, s.x, s.y, .015, R * .45, '255,236,200', .18 * s.glow, 'screen');
+    if (f.type === 'spot') cone(ctx, s.x, s.y, s.z - .05, 1.6, .3 * s.glow);
   }
   /* дневной свет из окон */
   for (const w of WINDOW_LIGHTS) pool(ctx, w.x, w.y, .02, w.r * .8, '200,225,255', .1);
@@ -2154,7 +2157,7 @@ function draw() {
     const cx = r.x + r.w / 2, cy = r.y + r.d / 2;
     floorText(ctx, r.name, cx - .34, cy + .34, .3, 'rgba(255,246,226,.32)', 1, 800);
     floorText(ctx, r.lit + ' / ' + r.total, cx + .5, cy - .5, .23, 'rgba(255,228,166,.38)', 1, 700);
-    const at = G.started ? r.fLit + '/' + r.fTotal + ' светильников' : 'нужно ' + r.fTotal + ' светильников';
+    const at = G.started ? r.lit + '/' + r.total + ' ламп' : 'нужно ' + r.total + ' ламп';
     floorText(ctx, at, cx - .5, cy - .5, .21, 'rgba(180,214,255,.36)', 1, 700);
   });
   /* светильники */
