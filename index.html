@@ -1118,8 +1118,8 @@ function buildFixtures() {
     s.reach = dist(s.sx, s.sy, s.x, s.y);
     ALL++;
   }));
-  ROOMS.forEach(r => { r.lit = 0; r.total = 0; });
-  FIXTURES.forEach(f => { ROOM[f.room].total += f.sockets.length; });
+  ROOMS.forEach(r => { r.lit = 0; r.total = 0; r.fTotal = 0; r.fLit = 0; });
+  FIXTURES.forEach(f => { const r = ROOM[f.room]; r.total += f.sockets.length; r.fTotal++; });
 }
 const BULB_R = 0.062;
 const SOCK_H = 0.09;
@@ -1298,6 +1298,18 @@ function drawLadder(c, cx, cy) {
   c.beginPath(); c.moveTo(-w * .8, -h * .78); c.lineTo(w * .8, -h * .78); c.stroke();
   c.strokeStyle = 'rgba(60,40,20,.5)'; c.lineWidth = 0.02 * U;
   c.beginPath(); c.moveTo(-w * .86, -h * .40); c.lineTo(w * .86, -h * .40); c.stroke();
+  c.restore();
+}
+function heroBackdrop(c) {
+  const s = P(hero.x, hero.y, 0);
+  const lift = hero.lift * 0.5;
+  const g = c.createRadialGradient(s.x, s.y - lift * U - 0.5 * U, 0, s.x, s.y - lift * U - 0.5 * U, 0.92 * U);
+  g.addColorStop(0, 'rgba(5,9,18,.5)');
+  g.addColorStop(.55, 'rgba(5,9,18,.3)');
+  g.addColorStop(1, 'rgba(5,9,18,0)');
+  c.save();
+  c.fillStyle = g;
+  c.beginPath(); c.ellipse(s.x, s.y - lift * U - 0.5 * U, 0.72 * U, 0.86 * U, 0, 0, TAU); c.fill();
   c.restore();
 }
 function drawHero(c, t) {
@@ -1812,7 +1824,17 @@ addEventListener('keydown', e => {
     if (!G.started || G.over) return;
     if (hero.job) { cancelJob(); return; }
     let best = null, bd = 3.2;
-    for (const s of SOCKETS) {
+  /* общий свет комнаты — считается по числу СВЕТИЛЬНИКОВ, а не патронов */
+  for (const r of ROOMS) {
+    if (G.started) {
+      const amb = AMBS[r.id] || 0;
+      if (amb > .01) {
+        const q = P(r.x + r.w / 2, r.y + r.d / 2, 0.02);
+        hole(q.x - CP.x + AX, q.y - CP.y + AY, Math.max(r.w, r.d) * .62, .34 * amb, .5);
+      }
+    }
+  }
+  for (const s of SOCKETS) {
       if (s.lit) continue;
       const d = dist(hero.x, hero.y, s.sx, s.sy);
       if (d < bd) { bd = d; best = s; }
@@ -2081,6 +2103,20 @@ function buildSorted() {
   SORTED.forEach(p => { p._d = p.x + p.y + p.w + p.d; p._r = roomOf(p.x + p.w / 2, p.y + p.d / 2); });
 }
 const AMBS = {};
+/* освещённость комнаты: считается по СВЕТИЛЬНИКАМ, а не по патронам.
+   Пустой светильник — 0, заполненный наполовину — 55 % его вклада, целый — 100 %. */
+function roomAmb(r) {
+  let sum = 0, full = 0;
+  for (const f of FIXTURES) {
+    if (f.room !== r.id) continue;
+    let n = 0;
+    for (const s of f.sockets) if (s.lit) n++;
+    if (n >= f.sockets.length) full++;
+    sum += n >= f.sockets.length ? 1 : (n / f.sockets.length) * .55;
+  }
+  r.fLit = full;
+  return r.fTotal ? sum / r.fTotal : 0;
+}
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const bg = ctx.createLinearGradient(0, 0, W * .4, H);
@@ -2090,19 +2126,19 @@ function draw() {
   ctx.translate(AX, AY); ctx.translate(-CP.x, -CP.y);
   /* статика */
   ctx.drawImage(staticCv, SB.x, SB.y);
-  /* мебель + электрик по глубине */
-  ROOMS.forEach(r => AMBS[r.id] = r.lit / r.total);
-  const hd = hero.x + hero.y;
-  let hd2 = false;
-  for (const p of SORTED) {
-    if (!hd2 && hd > p._d) { drawHero(ctx, G.t); hd2 = true; }
-    drawProp(ctx, p, AMBS[p._r.id]);
-  }
-  if (!hd2) drawHero(ctx, G.t);
+  /* мебель по глубине */
+  ROOMS.forEach(r => AMBS[r.id] = roomAmb(r));
+  for (const p of SORTED) drawProp(ctx, p, AMBS[p._r.id]);
   /* тьма */
   drawDark(.35 + .65 * (1 - G.litFact * .55));
   /* тёплый свет */
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const r of ROOMS) {
+    if (!G.started) continue;
+    const amb = AMBS[r.id] || 0;
+    if (amb < .01) continue;
+    pool(ctx, r.x + r.w / 2, r.y + r.d / 2, .015, Math.max(r.w, r.d) * .66, COL_WARM, .3 * amb);
+  }
   for (const f of FIXTURES) for (const s of f.sockets) {
     if (s.glow < .02) continue;
     const R = f.type === 'spot' ? 1.8 : (f.type === 'dome' ? 1.95 : 2.9);
@@ -2118,9 +2154,14 @@ function draw() {
     const cx = r.x + r.w / 2, cy = r.y + r.d / 2;
     floorText(ctx, r.name, cx - .34, cy + .34, .3, 'rgba(255,246,226,.32)', 1, 800);
     floorText(ctx, r.lit + ' / ' + r.total, cx + .5, cy - .5, .23, 'rgba(255,228,166,.38)', 1, 700);
+    const at = G.started ? r.fLit + '/' + r.fTotal + ' светильников' : 'нужно ' + r.fTotal + ' светильников';
+    floorText(ctx, at, cx - .5, cy - .5, .21, 'rgba(180,214,255,.36)', 1, 700);
   });
   /* светильники */
   for (const f of FIXTURES) drawFixture(ctx, f, AMBS);
+  /* электрик — всегда поверх мебели, стен и светильников */
+  heroBackdrop(ctx);
+  drawHero(ctx, G.t);
   /* рука с лампочкой */
   if (hero.job) {
     const j = hero.job, s = j.s;
