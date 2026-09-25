@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="description" content="Браузерная изометрическая игра: электрик с корзиной лампочек обходит квартиру из 4 комнат и вкручивает лампы в люстры и точечные светильники.">
 <title>Электрик: лампочки для квартиры</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='13' r='9' fill='%23ffc24a'/><rect x='12' y='21' width='8' height='4' rx='1' fill='%239aa7b4'/><rect x='13' y='25' width='6' height='2' rx='1' fill='%237d8894'/><path d='M16 3.5v2M5.5 7.5 7 9M26.5 7.5 25 9' stroke='%23ffc24a' stroke-width='1.7' stroke-linecap='round'/></svg>">
 <style>
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;margin:0;background:#05070d;overflow:hidden;
@@ -1713,7 +1714,7 @@ function win() {
   sfx('win');
   for (let i = 0; i < 6; i++) spark(rnd(0, APT.w), rnd(0, APT.d), 2.2, 20, 2.2, '255,226,160');
   const t = G.time;
-  const stars = t < 95 ? 3 : (t < 165 ? 2 : 1);
+  const stars = t < 115 ? 3 : (t < 190 ? 2 : 1);
   $('stars').innerHTML = [0, 1, 2].map(i => i < stars ? '★' : '<i>★</i>').join('');
   $('wTime').textContent = fmtTime(t);
   $('wScore').textContent = G.score;
